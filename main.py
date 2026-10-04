@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from astrbot.api import logger
@@ -20,7 +21,9 @@ class PluginConfig:
     def __init__(self, config: AstrBotConfig):
         self.enabled = bool(config.get("enabled", True))
         self.thinking_emoji_ids = self._as_int_list(config.get("thinking_emoji_ids", [66]))
+        self.random_thinking_emoji = bool(config.get("random_thinking_emoji", True))
         self.done_emoji_ids = self._as_int_list(config.get("done_emoji_ids", [74]))
+        self.random_done_emoji = bool(config.get("random_done_emoji", True))
         self.remove_thinking_on_done = bool(config.get("remove_thinking_on_done", True))
 
     @staticmethod
@@ -46,10 +49,12 @@ class IAmThinkingPlugin(Star):
         super().__init__(context)
         self.cfg = PluginConfig(config)
         logger.info(
-            "[iamthinking] 配置加载: enabled=%s, thinking=%s, done=%s, remove_thinking=%s",
+            "[iamthinking] 配置加载: enabled=%s, thinking=%s, random_thinking_emoji=%s, done=%s, random_done_emoji=%s, remove_thinking=%s",
             self.cfg.enabled,
             self.cfg.thinking_emoji_ids,
+            self.cfg.random_thinking_emoji,
             self.cfg.done_emoji_ids,
+            self.cfg.random_done_emoji,
             self.cfg.remove_thinking_on_done,
         )
 
@@ -76,6 +81,7 @@ class IAmThinkingPlugin(Star):
         message_id: Any,
         emoji_ids: list[int],
         set_: bool,
+        random_pick_one: bool = False,
     ) -> bool:
         if not emoji_ids:
             logger.debug("[iamthinking] emoji_ids 为空，跳过贴表情")
@@ -84,7 +90,9 @@ class IAmThinkingPlugin(Star):
         if bot is None:
             return False
         all_ok = True
-        for emoji_id in sorted(set(emoji_ids)):
+        unique_ids = sorted(set(emoji_ids))
+        target_ids = [random.choice(unique_ids)] if random_pick_one else unique_ids
+        for emoji_id in target_ids:
             try:
                 logger.debug(
                     "[iamthinking] 贴表情: message_id=%s emoji_id=%s set=%s",
@@ -136,7 +144,13 @@ class IAmThinkingPlugin(Star):
         logger.debug("[iamthinking] 记录事件状态: message_id=%s", message_id)
         event.set_extra("iamthinking_active", True)
         event.set_extra("iamthinking_message_id", message_id)
-        await self._emoji_like(event, message_id=message_id, emoji_ids=self.cfg.thinking_emoji_ids, set_=True)
+        await self._emoji_like(
+            event,
+            message_id=message_id,
+            emoji_ids=self.cfg.thinking_emoji_ids,
+            set_=True,
+            random_pick_one=self.cfg.random_thinking_emoji,
+        )
 
     @filter.on_llm_response()
     async def on_llm_response(self, event: AstrMessageEvent, resp: LLMResponse):
@@ -185,12 +199,17 @@ class IAmThinkingPlugin(Star):
             return
 
         event.set_extra("iamthinking_finishing", True)
-        done_ok = await self._emoji_like(
-            event,
-            message_id=message_id,
-            emoji_ids=self.cfg.done_emoji_ids,
-            set_=True,
-        )
+        done_ok = True
+        if not event.get_extra("iamthinking_done_emoji_applied", False):
+            done_ok = await self._emoji_like(
+                event,
+                message_id=message_id,
+                emoji_ids=self.cfg.done_emoji_ids,
+                set_=True,
+                random_pick_one=self.cfg.random_done_emoji,
+            )
+            if done_ok:
+                event.set_extra("iamthinking_done_emoji_applied", True)
         remove_ok = True
         if self.cfg.remove_thinking_on_done:
             logger.debug("[iamthinking] 移除处理中表情")

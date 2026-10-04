@@ -13,8 +13,31 @@
 
 - enabled：是否启用
 - thinking_emoji_ids：处理中表情 ID 列表
+- random_thinking_emoji：处理中是否从 `thinking_emoji_ids` 中随机选择 1 个（默认开启）
 - done_emoji_ids：完成表情 ID 列表
+- random_done_emoji：完成时是否从 `done_emoji_ids` 中随机选择 1 个（默认开启）
 - remove_thinking_on_done：完成后是否移除处理中表情
+
+### 配置示例
+
+```json
+{
+  "enabled": true,
+  "thinking_emoji_ids": [66],
+  "random_thinking_emoji": true,
+  "done_emoji_ids": [74, 75, 76],
+  "random_done_emoji": true,
+  "remove_thinking_on_done": true
+}
+```
+
+### 行为说明
+
+- 当 `random_thinking_emoji=true` 且 `thinking_emoji_ids` 有多个值时，进入处理中阶段会随机贴其中一个。
+- 当 `random_thinking_emoji=false` 时，处理中会按列表（去重后）逐个贴上。
+- 当 `done_emoji_ids` 为空列表 `[]` 时，完成阶段会**正常跳过贴完成表情**，这是合法配置，不会产生 warning。
+- 当 `random_done_emoji=true` 且 `done_emoji_ids` 有多个值时，每次完成会随机贴其中一个。
+- 当 `random_done_emoji=false` 时，会按列表（去重后）逐个贴上，保持旧行为。
 
 ## 说明
 
